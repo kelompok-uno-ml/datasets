@@ -1,10 +1,11 @@
 import pandas as pd
 import xgboost as xgb
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, r2_score
 
-def latih_model_xgboost(nama_file):
-    print(f"Membaca dataset bersih: {nama_file} ...")
+def latih_dan_bandingkan_model(nama_file):
+    print(f"Membaca dataset bersih: {nama_file} ...\n")
     try:
         df = pd.read_csv(nama_file)
     except FileNotFoundError:
@@ -12,42 +13,65 @@ def latih_model_xgboost(nama_file):
         return
 
     # Menentukan Fitur (X) dan Target (y)
-    # Target prediksi kita adalah Views_Numeric
     X = df[['Jumlah_Tagar', 'Skor_Sentimen']]
     y = df['Views_Numeric']
     
-    # Karena data awal mungkin masih banyak yang 0, kita beri peringatan jika datanya kurang variatif
     if y.sum() == 0:
-        print("\n⚠️ PERINGATAN: Semua nilai Views_Numeric adalah 0.")
-        print("Model ML tidak bisa belajar dari data yang tidak memiliki variasi.")
-        print("Solusi: Lakukan scraping ulang dengan kode yang sudah ditambahkan 'wait_selector' agar angka views asli masuk ke CSV.")
+        print("⚠️ PERINGATAN: Semua nilai Views_Numeric adalah 0. Scraping ulang dengan data riil diperlukan.\n")
 
-    print("\nMembagi data menjadi Data Latih (80%) dan Data Uji (20%)...")
+    print("Membagi data menjadi Data Latih (80%) dan Data Uji (20%)...")
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    print("Melatih model XGBoost Regressor...")
-    # Konfigurasi XGBoost
-    model = xgb.XGBRegressor(
+    # ==========================================
+    # MODEL 1: XGBOOST (Metode Boosting)
+    # ==========================================
+    print("\n[1/2] Melatih model XGBoost Regressor...")
+    model_xgb = xgb.XGBRegressor(
         objective='reg:squarederror', 
         n_estimators=100, 
         learning_rate=0.1, 
         max_depth=5,
         random_state=42
     )
-    model.fit(X_train, y_train)
+    model_xgb.fit(X_train, y_train)
+    y_pred_xgb = model_xgb.predict(X_test)
+    
+    mae_xgb = mean_absolute_error(y_test, y_pred_xgb)
+    r2_xgb = r2_score(y_test, y_pred_xgb)
 
-    print("Melakukan prediksi pada Data Uji...")
-    y_pred = model.predict(X_test)
+    # ==========================================
+    # MODEL 2: RANDOM FOREST (Metode Bagging)
+    # ==========================================
+    print("[2/2] Melatih model Random Forest Regressor (Model Pembanding)...")
+    model_rf = RandomForestRegressor(
+        n_estimators=100,
+        max_depth=5,
+        random_state=42
+    )
+    model_rf.fit(X_train, y_train)
+    y_pred_rf = model_rf.predict(X_test)
+    
+    mae_rf = mean_absolute_error(y_test, y_pred_rf)
+    r2_rf = r2_score(y_test, y_pred_rf)
 
-    # Evaluasi berdasarkan skema metrik di proposal (III.D)
-    mae = mean_absolute_error(y_test, y_pred)
-    r2 = r2_score(y_test, y_pred)
-
+    # ==========================================
+    # HASIL EVALUASI DAN PERBANDINGAN
+    # ==========================================
+    print("\n" + "=" * 50)
+    print("HASIL EVALUASI KOMPARATIF ENSEMBLE LEARNING")
+    print("=" * 50)
+    print("1. XGBOOST (Boosting)")
+    print(f"   - Mean Absolute Error (MAE) : {mae_xgb:,.2f}")
+    print(f"   - R-squared (R2) Score      : {r2_xgb:.4f}")
     print("-" * 50)
-    print("=== HASIL EVALUASI MODEL XGBOOST ===")
-    print(f"Mean Absolute Error (MAE) : {mae:.4f}")
-    print(f"R-squared (R2) Score      : {r2:.4f}")
-    print("-" * 50)
+    print("2. RANDOM FOREST (Bagging)")
+    print(f"   - Mean Absolute Error (MAE) : {mae_rf:,.2f}")
+    print(f"   - R-squared (R2) Score      : {r2_rf:.4f}")
+    print("=" * 50)
+    
+    # Rekomendasi otomatis berdasarkan R2
+    pemenang = "XGBoost" if r2_xgb > r2_rf else "Random Forest"
+    print(f"💡 Kesimpulan: Untuk dataset ini, model {pemenang} menunjukkan kinerja yang lebih baik.")
 
-# Jalankan pelatihan menggunakan dataset yang sudah dibersihkan
-latih_model_xgboost("dataset_bersih_ML.csv")
+# Jalankan pelatihan komparatif
+latih_dan_bandingkan_model("dataset_bersih_ML.csv")
